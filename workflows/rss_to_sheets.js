@@ -6,7 +6,6 @@ const { Groq } = require('groq-sdk');
 const { google } = require('googleapis');
 
 const app = express();
-const port = process.env.PORT || 3000; 
 
 const parser = new Parser();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -76,6 +75,5 @@ app.get('/eksekusi', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`🚀 Server menyala dan bersiaga di port ${port}!`);
-});
+// EXPORT UNTUK VERCEL (Menggantikan app.listen)
+module.exports = app;
