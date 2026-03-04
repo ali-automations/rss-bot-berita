@@ -6,7 +6,6 @@ const { Groq } = require('groq-sdk');
 const { google } = require('googleapis');
 
 const app = express();
-// Menggunakan port dari server cloud, atau port 3000 untuk komputer lokal
 const port = process.env.PORT || 3000; 
 
 const parser = new Parser();
@@ -15,9 +14,12 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 async function runAutomation() {
     console.log("Memulai eksekusi alur kerja: RSS -> Groq -> Google Sheets...");
     
-    // Autentikasi Google Sheets
+    // Autentikasi Google Sheets (VERSI CLOUD AMAN TANPA FILE JSON)
     const auth = new google.auth.GoogleAuth({
-        keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+        credentials: {
+            client_email: process.env.GOOGLE_CLIENT_EMAIL,
+            private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+        },
         scopes: ['https://www.googleapis.com/auth/spreadsheets']
     });
     const sheets = google.sheets({ version: 'v4', auth });
@@ -31,7 +33,6 @@ async function runAutomation() {
         console.log(`\nMemproses Artikel: ${item.title}`);
         const rawText = item.contentSnippet || item.content || item.title;
 
-        // Injeksi Prompt ke LLM
         const promptContext = `Bertindaklah sebagai ekstraktor data. Baca teks berikut dan kembalikan HANYA format JSON murni tanpa teks pengantar atau penutup. Skema JSON wajib: {"ringkasan": "string maksimal 2 kalimat", "kata_kunci": ["array of strings", "maksimal 5 kata"]}. Teks: ${rawText}`;
 
         const chatCompletion = await groq.chat.completions.create({
@@ -44,7 +45,6 @@ async function runAutomation() {
         const llmOutput = JSON.parse(chatCompletion.choices[0].message.content);
         const keywordString = llmOutput.kata_kunci.join(', ');
 
-        // Simpan ke Google Sheets
         await sheets.spreadsheets.values.append({
             spreadsheetId: process.env.SPREADSHEET_ID,
             range: 'Sheet1!A:E', 
@@ -64,10 +64,10 @@ async function runAutomation() {
     console.log("\nAlur kerja selesai dieksekusi.");
 }
 
-// MEMBUAT URL PEMICU (WEBHOOK)
+// URL PEMICU (WEBHOOK)
 app.get('/eksekusi', async (req, res) => {
     try {
-        console.log("Menerima sinyal dari URL, menjalankan otomatisasi...");
+        console.log("Menerima sinyal, menjalankan otomatisasi...");
         await runAutomation();
         res.status(200).send("✅ Berhasil! Berita sudah diekstrak dan masuk ke Google Sheets.");
     } catch (error) {
@@ -76,8 +76,6 @@ app.get('/eksekusi', async (req, res) => {
     }
 });
 
-// MENYALAKAN SERVER
 app.listen(port, () => {
-    console.log(`🚀 Server menyala dan bersiaga!`);
-    console.log(`👉 Buka browser dan klik link ini untuk memicu: http://localhost:${port}/eksekusi`);
+    console.log(`🚀 Server menyala dan bersiaga di port ${port}!`);
 });
